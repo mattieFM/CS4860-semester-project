@@ -3,6 +3,7 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 import json
+from enum import Enum
 
 verbose=True #debug control var
 json_writing_indent = 5 #purely stylistic
@@ -15,6 +16,17 @@ storage_dir = "./storage/" #where to store files? this must exist already I did 
 #in this file currently capital letters are angles unless otherwise specified and lower case are sides.
 #I realised this is backwards to what I beleive is typically taught in geometry but w/e we can fix it 
 #later if you want.
+
+
+class TriangleType(Enum):
+    """a simple enum to classify what type of triangle we have"""
+    AAA = 0
+    AAS = 1
+    ASA = 2
+    SAS = 3
+    SSA = 4
+    SSS = 5
+    UNSOLVABLE = 6
 
 class Triangle:
     """a simple class representing a triangle"""
@@ -222,6 +234,129 @@ class TriangleGenerator:
             file_name (str, optional): what should the file be named, you may include or forgo .json extension. Defaults to "triangle_array".
         """
         return self.generate_array_of_N_triangles(N).to_file(file_name)
+
+    
+class PartialTriangle(Triangle):
+    """a class for triangles with incomplete data
+
+    Args:
+        Triangle (_type_): _description_
+    """
+    
+    #classifier for intended way to solve:
+    #AAA -- not solution possible
+    #AAS -- 180-a-b then law of sines (to find other sides)
+    #ASA -- 180-a-b then law of sines (to find other 2 sides)
+    #SAS -- law of cosines then law of sines then 180-a-b for last angle
+    #SSA -- law of sines (to calculate 1 angle) then 180-a-b then law of sines (to find last side)
+    #SSS -- arc cosign or arc sin
+    
+    # let 180-a-b = 0
+    # let law of sines = 1
+    # let law of cosines = 2
+    # let arc sin = 3
+    # let arc cosin = 4
+    
+    # then our intended solution vector for a SSA triangle would be [1,0,1] implying that we would need sin, sum to 180 then sin.
+    
+    #okay so for us to classify what the intended solution is we must first classify our data into AAA, AAS, ASA, SAS or SSA, or SSS, Or None, none being unsolvable honestly that might be
+    #a better thing to tell our RL model then the intended solution vector, just telling it what type of triangle it is.
+    
+    def __init__(self, A=1, B=1, C=1, a=60, b=60, c=60):
+        super().__init__(A, B, C, a, b, c)
+        #now our triangle is made, the actual and correct values are stored, that is the ground truth exists, now we must choose what values are missing
+        
+        self.incomplete_sides = []
+        self.incomplete_angles = []
+        
+        #now lets populate these arrays randomly, remember in this case a unsolvable triangle is allowed
+        
+        #for now we just randomly populate, each angle and side has a 50% chance to be included
+        for angle in self.angles:
+            _angle = 0
+            if(random.random() > .5):
+                _angle = angle
+            self.incomplete_angles.append(_angle)
+            
+        for side in self.sides:
+            _side = 0
+            if(random.random() > .5):
+                _side = side
+            self.incomplete_sides.append(_side)
+            
+        self.triangle_type = self.classify()
+            
+        
+            
+            
+    
+    def classify(self):
+        """
+        this method will classify the triangle that we have into AAA, AAS, SAS, SSA or SSS
+        based on what angle/side array elements are missing, we denote a missing value by a 0
+        """
+    
+        #first check if its solvable at all, that is 
+        
+        #get arrays of where each element is 1 or 0 badsed on if we have that angle or not
+        angle_exists_array = [1 if side>0 else 0 for side in self.incomplete_angles]
+        side_exists_array = [1 if side>0 else 0 for side in self.incomplete_sides]
+        
+        #find the sums
+        side_count = sum(side_exists_array)
+        angle_count = sum(angle_exists_array)
+        
+        
+        
+        has_two_angles_and_one_side = side_count >= 2 and angle_count >=1
+        has_two_sides_and_one_angle = side_count >=1 and angle_count >=2
+        has_three_sides = side_count >= 3
+        
+        #if none of the previous conditions are met there is no solution
+        is_unsolvable = not has_two_angles_and_one_side and not has_two_sides_and_one_angle and not has_three_sides
+        
+        #angle angle angle is also unsolvable but we will clasify it anyways
+        is_AAA = angle_count >=3 and side_count == 0
+        
+        #side angle side would be two sides that are not oposite to an angle and one angle that is not oposite to a side
+        is_SAS = sum([angle_exists_array[i] ^ side_exists_array[i] for i in range (0,len(self.incomplete_sides))]) == 3 and side_count == 2 and angle_count == 1
+        
+        #angle side angle would mean a side in between two angles, for instance angles=[1,1,0], sides=[0,0,1] or a[0,1,1] s[1,0,0] or a[1,0,1] s[0,1,0] seems like we could just xor the two arrays
+        #I am going to leave ASA broad just checking if it is viable to solve the triangle like an ASA triangle rather than validating it is solely an ASA triangle
+        #that is if there is extra info but it can still be solved like an ASA then we will clasify it as an ASA triangle, the rest will be exclusive thus this functions as
+        #the catch all for triangles with a lot of extra info
+        #we will also check if its not a SAS triangle as these two are the same check other than the count of sides and angles
+        is_ASA = sum([angle_exists_array[i] ^ side_exists_array[i] for i in range (0,len(self.incomplete_sides))]) == 3 and not is_SAS
+        
+        #angle angle side would be two angles followed by a side, that is, we have the side opposite to atleast one of our angles
+        is_AAS = sum([angle_exists_array[i] & side_exists_array[i] for i in range (0,len(self.incomplete_sides))]) == 1 and angle_count == 2 and side_count==1
+        
+        #side side angle would be two sides followed by an angle, that is, we have the one side opposite to one angle and one side not opposite
+        is_SSA = sum([angle_exists_array[i] & side_exists_array[i] for i in range (0,len(self.incomplete_sides))]) == 1 and angle_count == 1 and side_count==2
+        
+        is_SSS = side_count == 3 and angle_count == 0
+        
+        if(is_SSS):
+            return TriangleType.SSS
+        elif(is_SSA):
+            return TriangleType.SSA
+        elif(is_AAS):
+            return TriangleType.AAS
+        elif(is_ASA):
+            return TriangleType.ASA
+        elif(is_AAA):
+            return TriangleType.AAA
+        elif(is_SAS):
+            return TriangleType.SAS
+        elif(is_unsolvable):
+            return TriangleType.UNSOLVABLE
+        
+        
+        
+        
+        
+        
+    
     
 def main():
     """a driver function to test this portion of code"""
@@ -250,4 +385,11 @@ def main():
     print(f"side lengths of written and read array are same: {triangles.array[0].sides == triangles_before_write.array[0].sides}")
 
 if __name__ == "__main__":
-    main()
+    #main()
+    tri = PartialTriangle()
+    print(f"triangle sides: {tri.incomplete_sides}")
+    print(f"triangle angles: {tri.incomplete_angles}")
+    print(tri.triangle_type)
+    tri.draw_triangle()
+
+
