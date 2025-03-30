@@ -11,3 +11,4 @@ This section included info on each file in this project
 
 ## triangle_gen.py
 This is a file that generates valid triangles.
+also classifies the triangles as one of: AAA, AAS, ASA, SAS, SSA, SSS, or UNSOLVABLE, that is angle angle angle, angle angle side, etc... the types that are usually tought in basic geometry
