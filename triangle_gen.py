@@ -5,7 +5,7 @@ import numpy as np
 import json
 from enum import Enum
 
-verbose=True #debug control var
+verbose=False #debug control var
 json_writing_indent = 5 #purely stylistic
 
 storage_dir = "./storage/" #where to store files? this must exist already I did not create it here, so just make sure to create the folder first. absolute path fine, but
@@ -30,7 +30,7 @@ class TriangleType(Enum):
 
 class Triangle:
     """a simple class representing a triangle"""
-    def __init__(self,A=1,B=1,C=1,a=60,b=60,c=60):
+    def __init__(self,a=60,b=60,c=60,A=1,B=1,C=1):
         """create a triangle with side lengths A,B,C and angles a,b,c
         everything defaults to a 1:1:1 isosolies triangle
 
@@ -51,6 +51,29 @@ class Triangle:
             float: sum of angles
         """
         return sum(self.angles)
+    
+    def get_error(self):
+        #the idea here is to use law of sines to find how much error we have compared to a correct answer
+        a,b,c = self.sides
+        A,B,C = self.angles
+        
+        # Calculate the angle error (how close the angles are to 180 degrees)
+        angle_error = np.abs(180 - (A + B + C))
+        
+        # Calculate the side error using the law of sines, if possible
+        side_error = 0
+        if not np.isnan(A) and not np.isnan(B) and not np.isnan(a) and not np.isnan(b):
+            side_error += np.abs(a / np.sin(np.radians(A)) - b / np.sin(np.radians(B)))
+        
+        if not np.isnan(B) and not np.isnan(C) and not np.isnan(b) and not np.isnan(c):
+            side_error += np.abs(b / np.sin(np.radians(B)) - c / np.sin(np.radians(C)))
+        
+        if not np.isnan(A) and not np.isnan(C) and not np.isnan(a) and not np.isnan(c):
+            side_error += np.abs(a / np.sin(np.radians(A)) - c / np.sin(np.radians(C)))
+
+        # Combine angle error and side error into a single metric
+        total_error = angle_error + side_error
+        return total_error
         
     def validate_triangle(self):
         """validates if this triangle is valid or not, by checking all non-zero values, angles sum to 180 and the sum of any two sides are greater than the other side
@@ -58,23 +81,8 @@ class Triangle:
         Returns:
             _type_: _description_
         """
-        triangle_has_zero_length_sides = any([angle ==0 for angle in self.sides])
-        triangle_has_zero_magnitude_angles = any([angle ==0 for angle in self.angles])
-        triangle_has_no_zeros = not triangle_has_zero_length_sides and not triangle_has_zero_magnitude_angles
-        sum_of_angles = self.sum_of_angles()
-        angles_sum_to_180 = sum_of_angles >= 179.9 and sum_of_angles <= 180.1
+        return np.isclose(self.get_error(), 0, atol=0.1)
 
-        #this could be better, we could check every combination, but I dont see a reason to.
-        sum_of_two_sides_greater_than_other = self.sides[0]+self.sides[1] > self.sides[2]
-        
-        #a triangle is valid if angles sum to 180, two sides are greater than other and the triangle has no zeros
-        valid_triangle = angles_sum_to_180 and sum_of_two_sides_greater_than_other and triangle_has_no_zeros
-        
-        if(not valid_triangle and verbose):
-            print(f"triangle_invalid:\ntriangle_has_no_zeros:{triangle_has_no_zeros}\nsum_of_angles:{sum_of_angles}\nangles_sum_to_180:{angles_sum_to_180}\nsum_of_two_sides_greater_than_other:{sum_of_two_sides_greater_than_other}")
-        
-        return valid_triangle
-    
     def to_json(self):
         """convert this obj to a json string
 
@@ -122,7 +130,7 @@ class Triangle:
         plt.plot(vertices_x, vertices_y, marker='o')
         plt.xlabel("x-axis")
         plt.ylabel("y-axis")
-        plt.title("Triangle with sides a, b and angle C")
+        plt.title("Triangle")
         plt.grid(True)
         plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
@@ -371,7 +379,7 @@ def main():
     
     
     #generate an array of triangles and write it to a file
-    triangles_before_write = tri_gen.generate_array_and_write_to_file(5, "triangle_gen_demo.json")
+    triangles_before_write = tri_gen.generate_array_and_write_to_file(100, "triangle_gen_demo.json")
     
     #draw first triangle
     triangles_before_write.array[0].draw_triangle() 
@@ -385,7 +393,7 @@ def main():
     print(f"side lengths of written and read array are same: {triangles.array[0].sides == triangles_before_write.array[0].sides}")
 
 if __name__ == "__main__":
-    #main()
+    main()
     tri = PartialTriangle()
     print(f"triangle sides: {tri.incomplete_sides}")
     print(f"triangle angles: {tri.incomplete_angles}")
