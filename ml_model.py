@@ -2,9 +2,10 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import triangle_gen
+import random
 
 verbose_in_training = False #should verbose also be on durring training (NO)
-verbose=True #print way too much stuff to terminal
+verbose=False #print way too much stuff to terminal
 
 class TriangleRL_Environment(gym.Env):
     """this is the environment of our RL model, this can be thought of as the game that our agent is trying to win. So the state is like what exists in the game,
@@ -41,7 +42,7 @@ class TriangleRL_Environment(gym.Env):
         self.largest_value_allowed_for_angles = 180-(self.smallest_value_allowed*2)
         
         #the amount that the agent will be able to add or subtract from a side/angle
-        self.increment_size = .5
+        self.increment_size = .05
         
         #note I decided to change our methodology, we will leave unknowns as NAN to start with, this will be easier to deal with than saying 0.
         #our state itself is constrained to the 3 sides and 3 angles for now. As such it is just a 6 long array
@@ -69,7 +70,7 @@ class TriangleRL_Environment(gym.Env):
         
         
         #step controls
-        self.max_steps = 1000
+        self.max_steps = 10000
         self.steps = 0
         
         #this will be the list of indices, that is the sides and angles that were given, in other words, the already known sides and angles, thus the ones
@@ -326,7 +327,7 @@ class TriangleRL_Environment(gym.Env):
             done = False
             while not done:
                 done, state = self.q_learning_do_one_step(state)
-        print(f"training done! {epochs} epochs train for!")
+        print(f"training done! {epochs} epochs trained for!")
         verbose = prev_verbose
     
     def solve(self,inital_state):
@@ -335,34 +336,110 @@ class TriangleRL_Environment(gym.Env):
         Args:
             state (_type_): the state to solve
         """
-        print(f"initial state provided: {inital_state}")
-        print("solving based on q-table")
+        if(verbose): print(f"initial state provided: {inital_state}")
+        if(verbose): print("solving based on q-table")
         state, _ = self.reset(inital_state)
         done = False
         while not done:
             done, state = self.q_learning_do_one_step(state)
-        print(f"solving done")
-        print(f"final state: {state}")
+        if(verbose): print(f"solving done")
+        if(verbose): print(f"final state: {state}")
         return state
         
+def train_test_isosceles(train=100,test=100):
+    """train and test the rl model on solving only isosceles triangles
+    train is how many triangle examples to train on
+    test is how many examples to test on
+    """
 
-def main():
-    """the driver function to demo this file"""
+    mean_squared_error = train_test_generic(train=train,test=test, test_state_function=lambda: [60,60,60,random.random()*10,np.nan,np.nan], train_state_function=lambda: [60,60,60,random.random()*10,np.nan,np.nan])
     
+    print(f"Mean Squared Error For isosceles (ASA) trained on isosceles (ASA): {mean_squared_error}")
+    
+def train_rand_test_isosceles(train=100,test=100):
+    """train and test the rl model on solving only isosceles triangles
+    train is how many triangle examples to train on
+    test is how many examples to test on
+    """
+
+    mean_squared_error = train_test_generic(train=train,test=test, test_state_function=lambda: [60,60,60,random.random()*10,np.nan,np.nan])
+    
+    print(f"Mean Squared Error For isosceles (ASA) trained on random (random): {mean_squared_error}")
+    
+def train_SAS_test_SAS(train=100,test=100):
+    """train and test the rl model on solving only isosceles triangles
+    train is how many triangle examples to train on
+    test is how many examples to test on
+    """
+
+    mean_squared_error = train_test_generic(train=train,test=test, test_state_function=lambda: [np.nan,60,np.nan,random.random()*10,np.nan,random.random()*10],train_state_function=lambda: [np.nan,60,np.nan,random.random()*10,np.nan,random.random()*10])
+    
+    print(f"Mean Squared Error For SAS trained on SAS: {mean_squared_error}")
+    
+def train_Random_test_SAS(train=100,test=100):
+    """train and test the rl model on solving only isosceles triangles
+    train is how many triangle examples to train on
+    test is how many examples to test on
+    """
+
+    mean_squared_error = train_test_generic(train=train,test=test, test_state_function=lambda: [np.nan,60,np.nan,random.random()*10,np.nan,random.random()*10])
+    
+    print(f"Mean Squared Error For SAS trained on Random: {mean_squared_error}")
+    
+def train_random_test_random(train=100,test=100):
+    """train and test the rl model on solving random triangles of any type.
+    """
+
+    mean_squared_error = train_test_generic(train=train,test=test)
+    
+    print(f"Mean Squared Error For Random (Random) trained on Random (Random): {mean_squared_error}")
+    
+def train_test_generic(train_state_function=None,test_state_function=None,train=100,test=100):
+    """a simple function that handles what types of triangles to train on, to test on in a modular way
+
+    Args:
+        train_state_function (_type_, optional): _description_. Defaults to None.
+        test_state_function (_type_, optional): _description_. Defaults to None.
+        train (int, optional): _description_. Defaults to 100.
+        test (int, optional): _description_. Defaults to 100.
+
+    Returns:
+        _type_: _description_
+    """
     #first we need to craete our RL enviornment
     env = TriangleRL_Environment()
     
     #okay now we need to train the env
-    #we will train for 100 epochs as to not take too long
-    env.train(100,[60,60,60,5,np.nan,np.nan])
+    train_state = train_state_function() if callable(train_state_function) else None
+    env.train(train, train_state)
     
     #now lets try to solve a triangle, a equilateral triangle will have all sides of the same length, as such it should find [60,60,60,5,5,5]
+    solved_states = []
     
+    #find 100 sample problems to solve
+    for n in range(test):
+        test_state = test_state_function() if callable(test_state_function) else None
+        solved_states.append(env.solve(test_state))
     
+    #calculate the error of each of these, since they are isosolises in this case its just going to be how far off the sides are from the 1 provided side
+    errorArray = [triangle_gen.Triangle(*state).get_error() for state in solved_states]
     
-    env.solve([60,60,60,5,np.nan,np.nan])
-    #dont print the whole table it crashed my terminal >.<
-    #print(f"QLearning-table:{env.q_table}")
+    mean_squared_error = (1/len(solved_states))*sum([error**2 for error in errorArray])
+    return mean_squared_error
+    
+
+
+def main():
+    """the driver function to demo this file"""
+    
+    train=100
+    test=100
+    train_test_isosceles(train,test)
+    train_rand_test_isosceles(train,test)
+    train_random_test_random(train,test)
+    train_Random_test_SAS(train,test)
+    train_SAS_test_SAS(train,test)
+    
             
 
 if __name__ == "__main__":

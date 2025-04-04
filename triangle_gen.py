@@ -65,10 +65,10 @@ class Triangle:
         if not np.isnan(A) and not np.isnan(B) and not np.isnan(a) and not np.isnan(b):
             side_error += np.abs(a / np.sin(np.radians(A)) - b / np.sin(np.radians(B)))
         
-        if not np.isnan(B) and not np.isnan(C) and not np.isnan(b) and not np.isnan(c):
+        elif not np.isnan(B) and not np.isnan(C) and not np.isnan(b) and not np.isnan(c):
             side_error += np.abs(b / np.sin(np.radians(B)) - c / np.sin(np.radians(C)))
         
-        if not np.isnan(A) and not np.isnan(C) and not np.isnan(a) and not np.isnan(c):
+        elif not np.isnan(A) and not np.isnan(C) and not np.isnan(a) and not np.isnan(c):
             side_error += np.abs(a / np.sin(np.radians(A)) - c / np.sin(np.radians(C)))
 
         # Combine angle error and side error into a single metric
@@ -398,6 +398,6 @@ if __name__ == "__main__":
     print(f"triangle sides: {tri.incomplete_sides}")
     print(f"triangle angles: {tri.incomplete_angles}")
     print(tri.triangle_type)
-    tri.draw_triangle()
+    #tri.draw_triangle()
 
 
