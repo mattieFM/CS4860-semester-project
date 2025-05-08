@@ -17,7 +17,6 @@ class TriangleRL_Environment(gym.Env):
     """
     
     iso_lambda = lambda: (lambda r: triangle_gen.PartialTriangle([60, 60, 60, r, r, r], known_indices=[0,1,2,3]))(random.random() * 10)
-    right_angle_lambda = lambda: (lambda x: (lambda r: triangle_gen.PartialTriangle([90, x, np.nan, np.nan, np.nan, r], known_indices=[0,1,5]))(random.random() * 10))(random.random() * 89)
     
     def __init__(self, exploration_rate=0.1, learning_rate=0.1, discount_factor=0.9):
         super(TriangleRL_Environment, self).__init__()
@@ -31,15 +30,16 @@ class TriangleRL_Environment(gym.Env):
         
         #config variables for reward policies
         self.reward_scaler = 1 #applied globally to all rewards
-        self.reward_for_illegal_action = -10 * self.reward_scaler # the negative reward to decentivize illigal actions (modifying known values)
+        self.reward_for_illegal_action = -1 * self.reward_scaler # the negative reward to decentivize illigal actions (modifying known values)
         self.reward_for_no_NAN = .01 * self.reward_scaler #this reward is given for every step that has all NAN values gone. this might not be good to have, mark as 0 to disable
         self.reward_for_valid_triangle = 100 * self.reward_scaler #a large reward provided if a step creates a valid triangle
-        self.reward_for_step = -0.5 #a negative reward to decentivize taking a lot of steps, this applies pretty much always
+        self.reward_for_step = -0.1 #a negative reward to decentivize taking a lot of steps, this applies pretty much always
         self.reward_for_good_step = .5 # a small psoitive reward if we got closer to the correct answer
+        self.reward_for_negative_sides = -1 #large negative reward for invalid/negative side lengths
          
         
         #a variable that will help bound our observation state later
-        self.smallest_value_allowed = .01
+        self.smallest_value_allowed = .9
         #the rounding that we do should be to the same decimal amount as the smallest value the RL agent is allowed to use
         self.number_of_decimals_for_discrete_space = len(str(self.smallest_value_allowed).split(".")[1]) 
         
@@ -53,9 +53,7 @@ class TriangleRL_Environment(gym.Env):
         self.max_triangle_type_value = 2**6 #each side or angle can be present or not present thus 2 choices raised to the number of slots gets us the 64 possible types
         
         #the amount that the agent will be able to add or subtract from a side/angle
-        self.base_increment_size = 1
-        self.increment_size = self.base_increment_size
-        
+        self.increment_size = .05
         
         #note I decided to change our methodology, we will leave unknowns as NAN to start with, this will be easier to deal with than saying 0.
         #our state itself is constrained to the 3 sides and 3 angles for now. As such it is just a 6 long array
@@ -107,8 +105,6 @@ class TriangleRL_Environment(gym.Env):
             _type_: _description_
         """
         super().reset(seed=seed, options=options)
-        
-        self.increment_size = self.base_increment_size
         
         #we reset our list of known indicies to empty
         self.known_indices = []
@@ -172,7 +168,7 @@ class TriangleRL_Environment(gym.Env):
         prev_state = self.state.copy() #might need __deepcopy__ if copy dosnt work right
             
         if(index < 6):
-            
+        
             #figure out if we are adding or subtracting
             sign = 1 if sub_action == 1 else -1
             
@@ -182,18 +178,12 @@ class TriangleRL_Environment(gym.Env):
             if index in self.known_indices:
                 return self.state, self.reward_for_illegal_action, False 
             
-            #if the agent sets a side or angle to a negative value this is also illegal
-            if(self.state[index] + self.increment_size * sign) <0:
-                return self.state, self.reward_for_illegal_action, False 
-            
             #if this index is yet to be defined we will define it as the smallest allowed value to allow it to be modified
             if np.isnan(self.state[index]):
-                #print("valid act")
                 self.state[index] = self.smallest_value_allowed
             
             #perform action
             self.state[index] += self.increment_size * sign
-            
             
             #print(f"step {self.step} state: {self.state}")
         else:
@@ -215,7 +205,8 @@ class TriangleRL_Environment(gym.Env):
             #if the triangle is now valid, we will provide a large reward and mark done to true
             reward+=self.reward_for_valid_triangle
             done = True
-        
+        if(any(side < 0 for side in self.state[3:6])):
+            reward+=self.reward_for_negative_sides
             
         #and finally we want to check if this state is better than the previous state, if it is (that is if the error is smaller as calculated in triangle_gen) lets give a small reward
         if(self.real_triangle.get_error(self.state) < self.real_triangle.get_error(prev_state)):
@@ -403,16 +394,6 @@ def train_test_isosceles(train=100,test=100,test_max_steps=1000):
     mean_squared_error = train_test_generic(train=train,test=test, test_max_steps=test_max_steps, test_state_function=TriangleRL_Environment.iso_lambda, train_state_function=TriangleRL_Environment.iso_lambda)
     
     print(f"Mean Squared Error For isosceles (ASA) trained on isosceles (ASA): {mean_squared_error}")
-
-def train_test_right_triangles(train=100,test=100,test_max_steps=1000):
-    """train and test the rl model on solving only isosceles triangles
-    train is how many triangle examples to train on
-    test is how many examples to test on
-    """
-
-    mean_squared_error = train_test_generic(train=train,test=test, test_max_steps=test_max_steps, test_state_function=TriangleRL_Environment.right_angle_lambda, train_state_function=TriangleRL_Environment.right_angle_lambda)
-    
-    print(f"Mean Squared Error For Right Triangles trained on Right Triangles: {mean_squared_error}")
     
 def train_rand_test_isosceles(train=100,test=100,test_max_steps=1000):
     """train and test the rl model on solving only isosceles triangles
@@ -499,8 +480,7 @@ def main():
     
     train=100
     test=100
-    #train_test_right_triangles(train,test)
-    train_test_isosceles(train,test,1000)
+    train_test_isosceles(train,test,10000)
     #train_rand_test_isosceles(train,test)
     #train_random_test_random(train,test)
     #train_Random_test_SAS(train,test)

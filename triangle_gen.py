@@ -30,7 +30,7 @@ class TriangleType(Enum):
 
 class Triangle:
     """a simple class representing a triangle"""
-    def __init__(self,a=60,b=60,c=60,A=1,B=1,C=1):
+    def __init__(self,a=60,b=60,c=60,A=1,B=1,C=1,type=False):
         """create a triangle with side lengths A,B,C and angles a,b,c
         everything defaults to a 1:1:1 isosolies triangle
 
@@ -44,6 +44,9 @@ class Triangle:
         """
         self.sides = [A,B,C]
         self.angles = [a,b,c]
+        self.type= type
+        
+    
     def sum_of_angles(self):
         """return a summation of all angles of this triangle
 
@@ -51,37 +54,6 @@ class Triangle:
             float: sum of angles
         """
         return sum(self.angles)
-    
-    def get_error(self):
-        #the idea here is to use law of sines to find how much error we have compared to a correct answer
-        a,b,c = self.sides
-        A,B,C = self.angles
-        
-        # Calculate the angle error (how close the angles are to 180 degrees)
-        angle_error = np.abs(180 - (A + B + C))
-        
-        # Calculate the side error using the law of sines, if possible
-        side_error = 0
-        if not np.isnan(A) and not np.isnan(B) and not np.isnan(a) and not np.isnan(b):
-            side_error += np.abs(a / np.sin(np.radians(A)) - b / np.sin(np.radians(B)))
-        
-        elif not np.isnan(B) and not np.isnan(C) and not np.isnan(b) and not np.isnan(c):
-            side_error += np.abs(b / np.sin(np.radians(B)) - c / np.sin(np.radians(C)))
-        
-        elif not np.isnan(A) and not np.isnan(C) and not np.isnan(a) and not np.isnan(c):
-            side_error += np.abs(a / np.sin(np.radians(A)) - c / np.sin(np.radians(C)))
-
-        # Combine angle error and side error into a single metric
-        total_error = angle_error + side_error
-        return total_error
-        
-    def validate_triangle(self):
-        """validates if this triangle is valid or not, by checking all non-zero values, angles sum to 180 and the sum of any two sides are greater than the other side
-
-        Returns:
-            _type_: _description_
-        """
-        return np.isclose(self.get_error(), 0, atol=0.1)
 
     def to_json(self):
         """convert this obj to a json string
@@ -216,7 +188,7 @@ class TriangleGenerator:
         angles = [angle_a, angle_b, angle_c]
         sides = [side_A_B,side_B_C,side_A_C]
         
-        triangle = Triangle(*sides, *angles)
+        triangle = PartialTriangle(*sides, *angles)
         if(verbose):
             json_string = triangle.to_json()
             print(f'-----new triangle------\n -(generate_random_triangle_via_angles)-\n')
@@ -225,7 +197,7 @@ class TriangleGenerator:
             print(f"json representation: {json_string}")
             print("---triangle_gen END---\n")
             triangle.from_json(json_string)
-    
+
         return triangle
     
     def load_array_of_triangle_from_file(self,file_name="triangle_array"):
@@ -270,29 +242,104 @@ class PartialTriangle(Triangle):
     #okay so for us to classify what the intended solution is we must first classify our data into AAA, AAS, ASA, SAS or SSA, or SSS, Or None, none being unsolvable honestly that might be
     #a better thing to tell our RL model then the intended solution vector, just telling it what type of triangle it is.
     
-    def __init__(self, A=1, B=1, C=1, a=60, b=60, c=60):
+    def __init__(self, A=1, B=1, C=1, a=60, b=60, c=60, type=None, known_indices = []):
+        
+        if(isinstance(A, list)):
+            B = A[1]
+            C = A[2]
+            a = A[3]
+            b = A[4]
+            c = A[5]
+            A = A[0]
+            
         super().__init__(A, B, C, a, b, c)
         #now our triangle is made, the actual and correct values are stored, that is the ground truth exists, now we must choose what values are missing
         
         self.incomplete_sides = []
         self.incomplete_angles = []
         
-        #now lets populate these arrays randomly, remember in this case a unsolvable triangle is allowed
         
-        #for now we just randomly populate, each angle and side has a 50% chance to be included
-        for angle in self.angles:
-            _angle = 0
-            if(random.random() > .5):
-                _angle = angle
-            self.incomplete_angles.append(_angle)
+        
+        if(isinstance(A, Triangle)):
+            self = A
+            return
+             
+        
+        
+        
+        
+        if(len(known_indices) == 0):
+            for angle in self.angles:
+                _angle = 0
+                if(random.random() > .5):
+                    _angle = angle
+                self.incomplete_angles.append(_angle)
+                
+            for side in self.sides:
+                _side = 0
+                if(random.random() > .5):
+                    _side = side
+                self.incomplete_sides.append(_side)
+        else:
+            for index in range(0,6):
+                if(index>2):
+                    #if greater than 2 then this is a side
+                    side_index = index-4
+                    # print(f"side index: {side_index}")
+                    # print(f"side array: {self.sides}")
+                    if(index in known_indices):
+                        self.incomplete_sides.append(self.sides[side_index])
+                    else:
+                        self.incomplete_sides.append(np.nan)
+                else:
+                    #if less than or equal to 2 this is an angle
+                    if(index in known_indices):
+                        self.incomplete_angles.append(self.angles[index])
+                    else:
+                        self.incomplete_angles.append(np.nan)
+                    
+                
             
-        for side in self.sides:
-            _side = 0
-            if(random.random() > .5):
-                _side = side
-            self.incomplete_sides.append(_side)
-            
-        self.triangle_type = self.classify()
+        self.triangle_type = self.get_type()
+        #print(self.triangle_type)
+    
+    def validate_triangle(self,state):
+        """validates if this triangle is valid or not, by checking all non-zero values, angles sum to 180 and the sum of any two sides are greater than the other side
+
+        Returns:
+            _type_: _description_
+        """
+        return np.isclose(self.get_error(state), 0, atol=0.1)
+        
+    def get_type(self):
+        angle_exists_array = [1 if side>0 else 0 for side in self.incomplete_angles]
+        side_exists_array = [1 if side>0 else 0 for side in self.incomplete_sides]
+        exists_array = angle_exists_array + side_exists_array
+        #what im thinking is convert the inclusing array to a binary string then to an int to map each possible inclusion state to a int number
+        return int("".join(str(bit) for bit in exists_array),2) #base 2
+    
+    def get_error(self,state):
+        #the idea here is to use law of sines to find how much error we have compared to a correct answer
+        A,B,C = state[:3] #angles
+        a,b,c = state[3:6] #sides
+        
+        #print(f"get err: {A} {B} {C} {a} {b} {c}")
+        
+        # Calculate the angle error (how close the angles are to 180 degrees)
+        angle_error = np.abs(180 - (A + B + C))
+        
+        # Calculate the side error
+        side_error = np.abs(sum(np.abs(self.sides[i]-np.abs(state[3:6][i])) for i in range(0,3)))
+        #print(f"sides:{self.sides}, geussed sides: {state[3:6]}")
+        #print(side_error)
+        
+        # Combine angle error and side error into a single metric
+        total_error = angle_error + side_error
+        #print(f"error:{total_error}")
+        return total_error
+    
+    def get_state_rep(self):
+        return self.incomplete_angles + self.incomplete_sides + [self.triangle_type]
             
         
             
