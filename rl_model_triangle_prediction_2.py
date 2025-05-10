@@ -25,7 +25,7 @@ class RL_Triangle_Predict_Model_2(rl_model_base.RL_ENV):
         
         self.reward_for_solving = 1000 * self.reward_scaler #a large reward provided if a step creates a valid triangle
         self.reward_for_step = -0.6 #a negative reward to decentivize taking a lot of steps, this applies pretty much always
-        self.reward_for_good_step = 2 # a small psoitive reward if we got closer to the correct answer
+        self.reward_for_good_step = 5 # a small psoitive reward if we got closer to the correct answer
         
         self.largest_value_allowed_for_sides = np.inf
         self.data_type = np.float32 #the datatype of our observation space, i figure 32 bit float is fine for now
@@ -123,11 +123,18 @@ class RL_Triangle_Predict_Model_2(rl_model_base.RL_ENV):
         if rhs_index in self.known_indices or rhs_index==6:
             return self.state, self.reward_for_illegal_action, False 
         
+        if np.isnan(self.state[rhs_index]):
+                #print("valid act")
+                self.state[rhs_index] = self.smallest_value_allowed
+        if np.isnan(self.state[lhs_index]):
+                #print("valid act")
+                self.state[lhs_index] = self.smallest_value_allowed
+        
         match sub_action:
             case 1: #addition
-                self.state[rhs_index] += self.state[lhs_index] 
+                self.state[rhs_index] += self.increment_size
             case 2: #subtraction
-                self.state[rhs_index] -= self.state[lhs_index] 
+                self.state[rhs_index] -= self.increment_size
             case 3: #multiplication
                 self.state[rhs_index] *= self.state[lhs_index]
             case 4: #division
@@ -139,6 +146,11 @@ class RL_Triangle_Predict_Model_2(rl_model_base.RL_ENV):
                 
         #no negatives in sides or angles
         if(rhs_index < 5 and self.state[rhs_index]) <0:
+            self.state = prev_state
+            return self.state, self.reward_for_illegal_action, False 
+        
+        #if a value was not nan and now is that was invalid
+        if(np.isnan(self.state[rhs_index]) and not np.isnan(prev_state[rhs_index])):
             self.state = prev_state
             return self.state, self.reward_for_illegal_action, False 
           
@@ -177,7 +189,7 @@ def main():
     #now lets try to solve a triangle, a equilateral triangle will have all sides of the same length, as such it should find [60,60,60,5,5,5]
     solved_states = []
     errorArray = []
-    train_count = 100
+    train_count = 1000
     test_count = 100
     env = RL_Triangle_Predict_Model_2()
     env.train(train_count)
@@ -185,7 +197,7 @@ def main():
     for n in range(test_count):
         state = env.solve(None)
         solved_states.append(state)
-        errorArray.append(env.get_error(state[0],state[1]))
+        errorArray.append(env.get_error(state))
     print(errorArray)
     print(solved_states)
     
