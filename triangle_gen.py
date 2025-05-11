@@ -171,7 +171,7 @@ class TriangleGenerator:
         """
         return Triangle_Array([self.generate_random_triangle_via_angles() for x in range(0,n)])
     
-    def generate_random_triangle_via_angles(self):
+    def generate_random_triangle_via_angles(self,known_indices=[]):
         """create a new triangle by randomly setting the angles then solving for the side lengths"""
         angle_a = random.randrange(1, 90) if not self.force_right_triangles_only else 90 #force 90 degrees if enabled, otherwise roll 
         remaining_possible_angle_magnitude = 180 - angle_a
@@ -188,7 +188,7 @@ class TriangleGenerator:
         angles = [angle_a, angle_b, angle_c]
         sides = [side_A_B,side_B_C,side_A_C]
         
-        triangle = PartialTriangle(*sides, *angles)
+        triangle = PartialTriangle(*sides, *angles, known_indices=known_indices)
         if(verbose):
             json_string = triangle.to_json()
             print(f'-----new triangle------\n -(generate_random_triangle_via_angles)-\n')
