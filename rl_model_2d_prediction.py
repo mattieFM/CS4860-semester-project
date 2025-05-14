@@ -7,6 +7,8 @@ import sklearn.metrics
 import random
 import math
 
+random.seed(42)
+
 verbose_in_training = False #should verbose also be on durring training (NO)
 verbose=False #print way too much stuff to terminal
 

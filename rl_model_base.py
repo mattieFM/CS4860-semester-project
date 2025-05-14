@@ -1,9 +1,12 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+from sklearn.neighbors import NearestNeighbors
 from triangle_gen import *
 import sklearn.metrics
 import random
+
+random.seed(42)
 
 verbose_in_training = False #should verbose also be on durring training (NO)
 verbose=False #print way too much stuff to terminal
@@ -254,6 +257,21 @@ class RL_ENV(gym.Env):
             #if we choose not to explore that means we need to behave inline with our q_table, that is we must choose the maximum value from the current values in the state that we are in
             #print(f"max:{max(self.q_table[state_tuple])}")
             
+            #if we have no data for this point, find the closest other point
+            if(max(self.q_table[state_tuple]) == 0 and len(self.q_table.keys())>2):
+                # print(self.q_table.keys())
+                
+                # arr = np.array([np.array([float(0 if np.isnan(value) else value) for value in key]) for key in self.q_table.keys()])
+                # print(arr)
+                # nbrs = NearestNeighbors(n_neighbors=2, algorithm='ball_tree').fit(arr)
+                # distance, index = nbrs.kneighbors(np.array([float(0 if np.isnan(value) else value) for value in state_tuple]).reshape(1, -1))
+                # # print(index)
+                # # print(arr[tuple(index)[0][0]])
+                # closest_state = tuple(np.round([value if not value==0 else np.nan for value in arr[tuple(index)[0][0]]], self.number_of_decimals_for_discrete_space)) 
+                # self.q_table[state_tuple] += self.q_table[closest_state] 
+                pass
+                #self.q_table.keys()
+                
             action = np.argmax(self.q_table[state_tuple])
             #print(action)
             
@@ -355,7 +373,7 @@ class RL_ENV(gym.Env):
         self.q_learning_handler(state,act,reward,next_state)
         return (done,next_state)
     
-    def train(self,epochs=100, predefined_state=None):
+    def train(self,epochs=100, predefined_state=None, should_print=False):
         """train the model on various random states
 
         Args:
@@ -365,7 +383,7 @@ class RL_ENV(gym.Env):
         prev_verbose = verbose
         if(verbose_in_training): verbose = verbose
         else: verbose = False
-        print(f"training for {epochs} epochs")
+        if(should_print):print(f"training for {epochs} epochs")
         
         #reset to baseline, then loop solving problems for a while till enough epochs have passed
         state, _ = self.reset(predefined_state)
@@ -374,7 +392,7 @@ class RL_ENV(gym.Env):
             done = False
             while not done:
                 done, state = self.q_learning_do_one_step(state)
-        print(f"training done! {epochs} epochs trained for!")
+        if(should_print):print(f"training done! {epochs} epochs trained for!")
         verbose = prev_verbose
     
     def solve(self,inital_state, maximum_allowed_steps=False):

@@ -1,5 +1,7 @@
 import math
 from rl_model_2d_prediction import RL_2D_Predict
+import random
+random.seed(42)
 
 verbose = False
 
@@ -29,10 +31,28 @@ def generic_driver(test_count=20,train_count=80,function_to_predict=math.sin, sm
     print(f"MSE for predicting '{label}':{mean_squared_error}")
 
 def main():
-    generic_driver(20,80,math.sin,0.00001,0.001,"sin")
-    generic_driver(20,80,math.cos,0.00001,0.001,"cos")
-    generic_driver(20,80,math.tan,0.00001,0.001,"tan")
-    generic_driver(20,80,lambda x: x+10,0.001,1,"x+10")
+    
+    train = 80
+    test = 20
+    print(f"80/20")
+    generic_driver(test,train,math.sin,0.00001,0.001,"sin")
+    generic_driver(test,train,math.cos,0.00001,0.001,"cos")
+    generic_driver(test,train,math.tan,0.00001,0.001,"tan")
+    
+    
+    train = 800
+    test = 200
+    print(f"800/200")
+    generic_driver(test,train,math.sin,0.00001,0.001,"sin")
+    generic_driver(test,train,math.cos,0.00001,0.001,"cos")
+    generic_driver(test,train,math.tan,0.00001,0.001,"tan")
+    
+    train = 1600
+    test = 400
+    print(f"1600/400")
+    generic_driver(test,train,math.sin,0.00001,0.001,"sin")
+    generic_driver(test,train,math.cos,0.00001,0.001,"cos")
+    generic_driver(test,train,math.tan,0.00001,0.001,"tan")
     
 if __name__ == "__main__":
     main()  

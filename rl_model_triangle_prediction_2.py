@@ -5,10 +5,15 @@ import numpy as np
 import triangle_gen
 import sklearn.metrics
 import random
+from rl_model_traiangle_prediction import TriangleRL_Environment
 import math
+
+random.seed(42)
 
 verbose_in_training = False #should verbose also be on durring training (NO)
 verbose=False #print way too much stuff to terminal
+
+
 
 class RL_Triangle_Predict_Model_2(rl_model_base.RL_ENV):
     """this extends the base one and is used for predicting one value off another value
@@ -26,6 +31,7 @@ class RL_Triangle_Predict_Model_2(rl_model_base.RL_ENV):
         self.reward_for_solving = 1000 * self.reward_scaler #a large reward provided if a step creates a valid triangle
         self.reward_for_step = -0.6 #a negative reward to decentivize taking a lot of steps, this applies pretty much always
         self.reward_for_good_step = 5 # a small psoitive reward if we got closer to the correct answer
+        self.reward_for_illegal_action = 2000
         
         self.largest_value_allowed_for_sides = np.inf
         self.data_type = np.float32 #the datatype of our observation space, i figure 32 bit float is fine for now
@@ -129,26 +135,29 @@ class RL_Triangle_Predict_Model_2(rl_model_base.RL_ENV):
         if np.isnan(self.state[lhs_index]):
                 #print("valid act")
                 self.state[lhs_index] = self.smallest_value_allowed
-        
-        match sub_action:
-            case 1: #addition
-                self.state[rhs_index] += self.increment_size
-            case 2: #subtraction
-                self.state[rhs_index] -= self.increment_size
-            case 3: #multiplication
-                self.state[rhs_index] *= self.state[lhs_index]
-            case 4: #division
-                self.state[rhs_index] /= self.state[lhs_index]
-            case 5: #exponent
-                self.state[rhs_index] **= self.state[lhs_index]
-            case 6: #xor
-                self.state[rhs_index] ^= self.state[lhs_index]
-                
-        #no negatives in sides or angles
-        if(rhs_index < 5 and self.state[rhs_index]) <0:
-            self.state = prev_state
+        try:
+            match sub_action:
+                case 1: #addition
+                    self.state[rhs_index] += self.increment_size
+                case 2: #subtraction
+                    self.state[rhs_index] -= self.increment_size
+                case 3: #multiplication
+                    self.state[rhs_index] *= self.state[lhs_index]
+                case 4: #division
+                    self.state[rhs_index] /= self.state[lhs_index]
+                case 5: #exponent
+                    self.state[rhs_index] **= self.state[lhs_index]
+                case 6: #assignment
+                    self.state[rhs_index] = self.state[lhs_index]
+        except:
             return self.state, self.reward_for_illegal_action, False 
-        
+        #no negatives in sides or angles
+        try:
+            if(rhs_index < 5 and self.state[rhs_index]) <0:
+                self.state = prev_state
+                return self.state, self.reward_for_illegal_action, False 
+        except:
+            return self.state, self.reward_for_illegal_action, False 
         #if a value was not nan and now is that was invalid
         if(np.isnan(self.state[rhs_index]) and not np.isnan(prev_state[rhs_index])):
             self.state = prev_state
@@ -184,22 +193,46 @@ class RL_Triangle_Predict_Model_2(rl_model_base.RL_ENV):
         """just so we can easily print it to terminal"""
         return f"state:{self.state}\nknown indexs:{self.known_indices}\n"
     
+
+def train_test_generic(train_state_function=None,test_state_function=None,train=100,test=100,test_max_steps=1000,label="generic"):
+    """a simple function that handles what types of triangles to train on, to test on in a modular way
+
+    Args:
+        train_state_function (_type_, optional): _description_. Defaults to None.
+        test_state_function (_type_, optional): _description_. Defaults to None.
+        train (int, optional): _description_. Defaults to 100.
+        test (int, optional): _description_. Defaults to 100.
+
+    Returns:
+        _type_: _description_
+    """
+    #first we need to craete our RL enviornment
+    env = RL_Triangle_Predict_Model_2()
     
-def main():
+    #okay now we need to train the env
+    
+    print(f"training for {train} epochs")
+    
+    i = 0
+    for i in range(train):
+        train_state = train_state_function() if callable(train_state_function) else None
+        env.train(1, train_state)
+    
     #now lets try to solve a triangle, a equilateral triangle will have all sides of the same length, as such it should find [60,60,60,5,5,5]
     solved_states = []
     errorArray = []
-    train_count = 1000
-    test_count = 100
-    env = RL_Triangle_Predict_Model_2()
-    env.train(train_count)
+    
+    print(f"done training for {train} epochs")
+    
     #find 100 sample problems to solve
-    for n in range(test_count):
-        state = env.solve(None)
+    for n in range(test):
+        test_state = test_state_function() if callable(test_state_function) else None
+        state = env.solve(test_state,test_max_steps)
         solved_states.append(state)
-        errorArray.append(env.get_error(state))
-    print(errorArray)
-    print(solved_states)
+        errorArray.append(env.real_triangle.get_error(state))
+    if(verbose):
+        print(errorArray)
+        print(solved_states)
     
     #calculate the error of each of these, since they are isosolises in this case its just going to be how far off the sides are from the 1 provided side
 
@@ -207,7 +240,23 @@ def main():
 
     mean_squared_error = (sum([error**2 for error in errorArray])/len(solved_states))
     
-    print(f"MSE:{mean_squared_error}")
+    
+    print(f"MSE of {label}: {mean_squared_error}")
+    return mean_squared_error
+
+def main():
+    #now lets try to solve a triangle, a equilateral triangle will have all sides of the same length, as such it should find [60,60,60,5,5,5]
+    solved_states = []
+    errorArray = []
+    train_count = 80
+    test_count = 20
+    train_test_generic(TriangleRL_Environment.iso_lambda,TriangleRL_Environment.iso_lambda,train_count,test_count,label="iso->iso")
+    
+    #calculate the error of each of these, since they are isosolises in this case its just going to be how far off the sides are from the 1 provided side
+
+    
+
+    
     
 
 if __name__ == "__main__":

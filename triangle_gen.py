@@ -5,6 +5,8 @@ import numpy as np
 import json
 from enum import Enum
 
+random.seed(42)
+
 verbose=False #debug control var
 json_writing_indent = 5 #purely stylistic
 
@@ -266,19 +268,26 @@ class PartialTriangle(Triangle):
              
         
         
+        maxSidesMissing = 2
+        maxAnglesMissing = 2
+        maxValuesMissing = 3
         
+        sidesMissing = 0
+        anglesMissing = 0
         
         if(len(known_indices) == 0):
             for angle in self.angles:
-                _angle = 0
-                if(random.random() > .5):
-                    _angle = angle
+                _angle = angle
+                if(random.random() > .5 and anglesMissing < maxAnglesMissing and sidesMissing+anglesMissing<maxValuesMissing):
+                    _angle = 0
+                    anglesMissing+=1
                 self.incomplete_angles.append(_angle)
                 
             for side in self.sides:
-                _side = 0
-                if(random.random() > .5):
-                    _side = side
+                _side = side
+                if(random.random() > .5 and sidesMissing < maxSidesMissing and sidesMissing+anglesMissing<maxValuesMissing):
+                    _side = 0
+                    sidesMissing+=1
                 self.incomplete_sides.append(_side)
         else:
             for index in range(0,6):

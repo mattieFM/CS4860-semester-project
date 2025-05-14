@@ -5,6 +5,8 @@ import triangle_gen
 import sklearn.metrics
 import random
 
+random.seed(42)
+
 verbose_in_training = False #should verbose also be on durring training (NO)
 verbose=False #print way too much stuff to terminal
 
@@ -347,7 +349,7 @@ class TriangleRL_Environment(gym.Env):
         self.q_learning_handler(state,act,reward,next_state)
         return (done,next_state)
     
-    def train(self,epochs=100, predefined_state=None):
+    def train(self,epochs=100, predefined_state=None,should_print=False):
         """train the model on various random states
 
         Args:
@@ -357,7 +359,7 @@ class TriangleRL_Environment(gym.Env):
         prev_verbose = verbose
         if(verbose_in_training): verbose = verbose
         else: verbose = False
-        print(f"training for {epochs} epochs")
+        if(should_print): print(f"training for {epochs} epochs")
         
         #reset to baseline, then loop solving problems for a while till enough epochs have passed
         state, _ = self.reset(predefined_state)
@@ -366,7 +368,7 @@ class TriangleRL_Environment(gym.Env):
             done = False
             while not done:
                 done, state = self.q_learning_do_one_step(state)
-        print(f"training done! {epochs} epochs trained for!")
+        if(should_print):print(f"training done! {epochs} epochs trained for!")
         verbose = prev_verbose
     
     def solve(self,inital_state, maximum_allowed_steps=False):
@@ -469,12 +471,19 @@ def train_test_generic(train_state_function=None,test_state_function=None,train=
     env = TriangleRL_Environment()
     
     #okay now we need to train the env
-    train_state = train_state_function() if callable(train_state_function) else None
-    env.train(train, train_state)
+    
+    print(f"training for {train} epochs")
+    
+    i = 0
+    for i in range(train):
+        train_state = train_state_function() if callable(train_state_function) else None
+        env.train(1, train_state)
     
     #now lets try to solve a triangle, a equilateral triangle will have all sides of the same length, as such it should find [60,60,60,5,5,5]
     solved_states = []
     errorArray = []
+    
+    print(f"done training for {train} epochs")
     
     #find 100 sample problems to solve
     for n in range(test):
@@ -482,8 +491,9 @@ def train_test_generic(train_state_function=None,test_state_function=None,train=
         state = env.solve(test_state,test_max_steps)
         solved_states.append(state)
         errorArray.append(env.real_triangle.get_error(state))
-    print(errorArray)
-    print(solved_states)
+    if(verbose):
+        print(errorArray)
+        print(solved_states)
     
     #calculate the error of each of these, since they are isosolises in this case its just going to be how far off the sides are from the 1 provided side
 
@@ -497,14 +507,38 @@ def train_test_generic(train_state_function=None,test_state_function=None,train=
 def main():
     """the driver function to demo this file"""
     
-    train=100
-    test=100
-    #train_test_right_triangles(train,test)
-    train_test_isosceles(train,test,1000)
-    #train_rand_test_isosceles(train,test)
-    #train_random_test_random(train,test)
-    #train_Random_test_SAS(train,test)
-    #train_SAS_test_SAS(train,test)
+    # train=100
+    # test=100
+    # #train_test_right_triangles(train,test)
+    # train_test_isosceles(train,test,1000)
+    # train_rand_test_isosceles(train,test)
+    # train_random_test_random(train,test)
+    # train_Random_test_SAS(train,test)
+    # train_SAS_test_SAS(train,test)
+    
+    # train=800
+    # test=200
+    # #train_test_right_triangles(train,test)
+    # train_test_isosceles(train,test,1000)
+    # train_rand_test_isosceles(train,test)
+    # train_random_test_random(train,test)
+    # train_Random_test_SAS(train,test)
+    # train_SAS_test_SAS(train,test)
+    
+    # train=1600
+    # test=400
+    # #train_test_right_triangles(train,test)
+    # train_test_isosceles(train,test,1000)
+    # train_rand_test_isosceles(train,test)
+    # train_random_test_random(train,test)
+    # train_Random_test_SAS(train,test)
+    # train_SAS_test_SAS(train,test)
+    
+    
+    
+    # mean_squared_error = train_test_generic(train=80,test=20, test_state_function=lambda:triangle_gen.TriangleGenerator().generate_random_triangle_via_angles(known_indices=[0,1,2,5]),train_state_function=lambda:triangle_gen.TriangleGenerator().generate_random_triangle_via_angles(known_indices=[0,1,2,5]))
+    
+    # print(f"Mean Squared Error For SAAA trained on SAAA: {mean_squared_error}")
     
             
 
